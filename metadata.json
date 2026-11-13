@@ -1,0 +1,6 @@
+{
+  "name": "Bastion Grid",
+  "description": "Tactical tower defense with procedural map generation, tower evolutions, unique in-run power-ups, and customizable end-game difficulty modifiers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
