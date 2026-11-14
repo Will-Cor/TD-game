@@ -193,7 +193,8 @@ export function GameHud({
   const gridFull = hud.towerCount >= hud.maxActiveTowers;
 
   const selectedDef = hud.selectedTower ? TOWER_DEFS[hud.selectedTower.type] : null;
-  const isFusedSuper = Boolean(selectedDef?.isSuper && selectedDef.parents);
+  const fusedParents = hud.selectedTower?.fusedParents ?? selectedDef?.parents;
+  const isFusedSuper = Boolean(selectedDef?.isSuper && fusedParents);
   const selectedSpa = hud.selectedTowerStats
     ? Number((1 / Math.max(0.05, hud.selectedTowerStats.fireRate)).toFixed(2))
     : 0;
@@ -412,10 +413,9 @@ export function GameHud({
                     {selectedDef.name}
                   </h3>
                   <div className="truncate text-[11px] text-[#94A3B8]">
-                    {isFusedSuper && selectedDef.parents ? (
+                    {isFusedSuper && fusedParents ? (
                       <span className="font-semibold text-[#38BDF8]">
-                        {TOWER_DEFS[selectedDef.parents[0]].name} +{' '}
-                        {TOWER_DEFS[selectedDef.parents[1]].name}
+                        {TOWER_DEFS[fusedParents[0]].name} + {TOWER_DEFS[fusedParents[1]].name}
                       </span>
                     ) : (
                       selectedDef.role

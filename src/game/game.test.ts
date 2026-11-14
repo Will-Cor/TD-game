@@ -354,6 +354,28 @@ test('strategic deployment caps retain parent and grid caps after combining turr
   counts = getDeployedCountByType(run.towers);
   assert.equal(counts.cannon, 4); // Still 4/4 cannons — no infinite tower loophole
   assert.equal(canBuildTower(run, 'cannon').ok, false);
+
+  // Cross-recipe fusion targeting shared super chassis (e.g. Rotary Cannon + Hellfire Flamer -> Inferno Hydra)
+  // MUST keep 1/4 Rotary Cannon and 1/3 Hellfire Flamer (never 0/4 and 2/3)!
+  const pyroProfile = {
+    ...createDefaultProfile(),
+    unlockedTowers: [...createDefaultProfile().unlockedTowers, 'pyro' as const],
+    equippedLoadout: ['cannon' as const, 'pyro' as const, 'cryo' as const, 'rail' as const],
+  };
+  const pyroRun = createRunState('standard', pyroProfile, 727272);
+  pyroRun.scrap = 1000;
+  const cRes = placeTower(pyroRun, 'cannon', buildable[0].col, buildable[0].row);
+  const pRes = placeTower(pyroRun, 'pyro', buildable[1].col, buildable[1].row);
+  assert.equal(cRes.ok && pRes.ok, true);
+
+  const infernoFusion = combineTowers(pyroRun, cRes.tower!.id, pRes.tower!.id);
+  assert.equal(infernoFusion.ok, true);
+  assert.equal(infernoFusion.tower!.type, 'inferno_hydra');
+  assert.deepEqual(infernoFusion.tower!.fusedParents, ['cannon', 'pyro']);
+
+  const pyroCounts = getDeployedCountByType(pyroRun.towers);
+  assert.equal(pyroCounts.cannon, 1); // 1/4 Rotary Cannon retained
+  assert.equal(pyroCounts.pyro, 1);   // 1/3 Hellfire Flamer retained (NOT 2/3!)
 });
 
 test('main menu lineup enforces 6-turret max equip limit and gates locked turrets', () => {

@@ -159,7 +159,9 @@ export function rerollRunMap(run: RunState, seed?: number): RunState {
 }
 
 export function computeTowerEffectiveStats(
-  tower: Pick<PlacedTower, 'type' | 'level' | 'onVantage' | 'totalSpent'>,
+  tower: Pick<PlacedTower, 'type' | 'level' | 'onVantage' | 'totalSpent'> & {
+    fusedParents?: PlacedTower['fusedParents'];
+  },
   run: Pick<
     RunState,
     'evolutionsSnapshot' | 'passivePowerUps' | 'overdriveTimer'
@@ -316,24 +318,27 @@ export function computeTowerEffectiveStats(
         }
       }
     }
-  } else if (base.parents) {
-    // Super Turrets inherit combined evolution synergy from both parent chassis
-    const combinedTiers =
-      (run.evolutionsSnapshot[base.parents[0]]?.tier ?? 0) +
-      (run.evolutionsSnapshot[base.parents[1]]?.tier ?? 0);
-    damage *= 1 + combinedTiers * 0.06;
-    range *= 1 + combinedTiers * 0.03;
-    for (const parent of base.parents) {
-      const pEvo = run.evolutionsSnapshot[parent];
-      if (pEvo && pEvo.tier >= 3) {
-        if ((parent === 'cannon' || parent === 'pyro') && pEvo.apexChoice === 'b') {
-          appliesVulnerability = true;
+  } else {
+    const effectiveParents = tower.fusedParents ?? base.parents;
+    if (effectiveParents) {
+      // Super Turrets inherit combined evolution synergy from both actual fused parent chassis
+      const combinedTiers =
+        (run.evolutionsSnapshot[effectiveParents[0]]?.tier ?? 0) +
+        (run.evolutionsSnapshot[effectiveParents[1]]?.tier ?? 0);
+      damage *= 1 + combinedTiers * 0.06;
+      range *= 1 + combinedTiers * 0.03;
+      for (const parent of effectiveParents) {
+        const pEvo = run.evolutionsSnapshot[parent];
+        if (pEvo && pEvo.tier >= 3) {
+          if ((parent === 'cannon' || parent === 'pyro') && pEvo.apexChoice === 'b') {
+            appliesVulnerability = true;
+          }
+          if (parent === 'cryo' && pEvo.apexChoice === 'b') hasGlacialPulse = true;
+          if (parent === 'chrono' && pEvo.apexChoice === 'a') hasGlacialPulse = true;
+          if (parent === 'tesla' && pEvo.apexChoice === 'b') hasEmpStun = true;
+          if (parent === 'rail' && pEvo.apexChoice === 'b') critChance += 0.15;
+          if (parent === 'laser' && pEvo.apexChoice === 'a') critChance += 0.15;
         }
-        if (parent === 'cryo' && pEvo.apexChoice === 'b') hasGlacialPulse = true;
-        if (parent === 'chrono' && pEvo.apexChoice === 'a') hasGlacialPulse = true;
-        if (parent === 'tesla' && pEvo.apexChoice === 'b') hasEmpStun = true;
-        if (parent === 'rail' && pEvo.apexChoice === 'b') critChance += 0.15;
-        if (parent === 'laser' && pEvo.apexChoice === 'a') critChance += 0.15;
       }
     }
   }
@@ -393,13 +398,13 @@ export function canPlaceTowerAt(run: RunState, col: number, row: number): boolea
 }
 
 export function getDeployedCountByType(
-  towers: Pick<PlacedTower, 'type'>[],
+  towers: Pick<PlacedTower, 'type' | 'fusedParents'>[],
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const t of towers) {
     counts[t.type] = (counts[t.type] ?? 0) + 1;
     if (isSuperTowerType(t.type)) {
-      const parents = TOWER_DEFS[t.type].parents;
+      const parents = t.fusedParents ?? TOWER_DEFS[t.type].parents;
       if (parents) {
         for (const p of parents) {
           counts[p] = (counts[p] ?? 0) + 1;
@@ -531,6 +536,7 @@ export function combineTowers(
   if (!superType) return { ok: false };
 
   run.scrap -= FUSION_COST;
+  primary.fusedParents = [primary.type as BaseTowerType, partner.type as BaseTowerType];
   primary.type = superType;
   primary.level = Math.max(primary.level, partner.level) as 1 | 2 | 3;
   primary.totalSpent += partner.totalSpent + FUSION_COST;

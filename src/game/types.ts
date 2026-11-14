@@ -181,6 +181,7 @@ export interface EnemyArchetypeDef {
 export interface PlacedTower {
   id: number;
   type: TowerType;
+  fusedParents?: [BaseTowerType, BaseTowerType];
   col: number;
   row: number;
   level: 1 | 2 | 3;
