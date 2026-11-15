@@ -30,13 +30,6 @@ export type SuperTowerType =
 
 export type TowerType = BaseTowerType | SuperTowerType;
 
-export type TowerLevel = 1 | 2 | 3;
-
-export interface GameSettings {
-  disableDamageIndicators: boolean;
-  showEnemyHpNumbers: boolean;
-}
-
 export type ApexBranch = 'a' | 'b';
 
 export type TargetPriority = 'first' | 'strongest' | 'closest';

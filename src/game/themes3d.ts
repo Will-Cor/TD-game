@@ -498,7 +498,7 @@ export function createThemedSceneryProp(
   }
 
   if (style === 'foundry') {
-    const rustMat = new THREE.MeshStandardMaterial({ color: 0x6e402c, bumpMap: textures.metalBump, roughness: 0.65, metalness: 0.45 });
+    const rustMat = new THREE.MeshStandardMaterial({ color: 0x6e402c, map: textures.metalBump, roughness: 0.65, metalness: 0.45 });
     const steelMat = new THREE.MeshStandardMaterial({ color: 0x2e2623, roughness: 0.45, metalness: 0.75 });
     const emberMat = new THREE.MeshStandardMaterial({
       color: 0xf97316,
@@ -585,7 +585,7 @@ export function createThemedSceneryProp(
   }
 
   // Level 8: Reactor Citadel Pylon
-  const armorMat = new THREE.MeshStandardMaterial({ color: 0x222938, bumpMap: textures.metalBump, roughness: 0.45, metalness: 0.72 });
+  const armorMat = new THREE.MeshStandardMaterial({ color: 0x222938, map: textures.metalBump, roughness: 0.45, metalness: 0.72 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0xe5a93c, roughness: 0.3, metalness: 0.82 });
   const coreMat = new THREE.MeshStandardMaterial({
     color: 0xf43f5e,

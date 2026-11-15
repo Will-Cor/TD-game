@@ -3,7 +3,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { TOWER_DEFS } from './catalog';
 import { createTowerModel } from './models3d';
 import { createProceduralTextures } from './textures3d';
-import type { TowerLevel, TowerType } from './types';
+import type { TowerType } from './types';
+
+type TowerLevel = 1 | 2 | 3;
 
 const thumbnailCache = new Map<string, string>();
 let batchAttempted = false;

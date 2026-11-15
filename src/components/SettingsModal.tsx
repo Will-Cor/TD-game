@@ -1,4 +1,7 @@
-import type { GameSettings } from '../game/types';
+export interface GameSettings {
+  disableDamageIndicators: boolean;
+  showEnemyHpNumbers: boolean;
+}
 
 interface SettingsModalProps {
   settings: GameSettings;
