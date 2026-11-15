@@ -119,11 +119,7 @@ export function loadProfile(): PlayerProfile {
       selectedLevel,
       highestUnlockedLevel,
       levelSeeds: { ...def.levelSeeds, ...(parsed.levelSeeds ?? {}) },
-      activeModifiers: Array.isArray(parsed.activeModifiers)
-        ? parsed.activeModifiers.filter((id): id is ModifierId =>
-            MODIFIERS.some((m) => m.id === id),
-          )
-        : [],
+      activeModifiers: [],
     };
   } catch {
     return createDefaultProfile();

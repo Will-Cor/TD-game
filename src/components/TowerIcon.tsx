@@ -1,4 +1,5 @@
 import { TOWER_DEFS, isSuperTowerType } from '../game/catalog';
+import { getTowerThumbnail3D } from '../game/towerThumbnails3d';
 import type { TowerType } from '../game/types';
 
 export function TowerIcon({
@@ -8,6 +9,19 @@ export function TowerIcon({
   type: TowerType;
   className?: string;
 }) {
+  const thumb3d = getTowerThumbnail3D(type);
+  if (thumb3d) {
+    return (
+      <img
+        src={thumb3d}
+        alt=""
+        draggable={false}
+        aria-hidden="true"
+        className={`${className} select-none object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]`}
+      />
+    );
+  }
+
   if (isSuperTowerType(type)) {
     const def = TOWER_DEFS[type];
     const primary = def.accentColor;

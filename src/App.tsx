@@ -3,7 +3,6 @@ import { EvolutionModal } from './components/EvolutionModal';
 import { extractHudSnapshot, GameHud, type HudSnapshot } from './components/GameHud';
 import { LevelSelectModal } from './components/LevelSelectModal';
 import { LoadoutModal } from './components/LoadoutModal';
-import { ModifiersModal } from './components/ModifiersModal';
 import { PowerUpModal } from './components/PowerUpModal';
 import { StatusModal } from './components/StatusModal';
 import { TitleScreen } from './components/TitleScreen';
@@ -17,15 +16,16 @@ import {
   saveProfile,
   setTowerApexChoice,
   toggleEquipTowerInProfile,
-  toggleModifierInProfile,
 } from './game/progression';
 import { BastionScene3D, type BoardClickEvent, type PanKeysState } from './game/scene3d';
 import {
+  addTacticalPing,
   applyPowerUpChoice,
   canCombineTowers,
   combineTowers,
   createRunState,
   cycleTowerPriority,
+  getTowerCoords,
   placeTower,
   rerollRunMap,
   sellTower,
@@ -39,8 +39,6 @@ import type {
   ApexBranch,
   GameModeId,
   GameScreenState,
-  GridCoord,
-  ModifierId,
   PlayerProfile,
   PowerUpDef,
   PowerUpId,
@@ -62,9 +60,9 @@ export default function App() {
   const [screen, setScreen] = useState<GameScreenState>(
     initialAutostart ? 'playing' : 'title',
   );
-  const [titleModal, setTitleModal] = useState<
-    'none' | 'levels' | 'loadout' | 'evolutions' | 'modifiers'
-  >('none');
+  const [titleModal, setTitleModal] = useState<'none' | 'levels' | 'loadout' | 'evolutions'>(
+    'none',
+  );
   const [hud, setHud] = useState<HudSnapshot | null>(null);
   const [draftChoices, setDraftChoices] = useState<{ wave: number; choices: PowerUpDef[] } | null>(
     null,
@@ -73,11 +71,13 @@ export default function App() {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BastionScene3D | null>(null);
-  const titleMapRef = useRef(generateRandomMap());
+  const titleMapRef = useRef(generateRandomMap(undefined, profile.selectedLevel));
   const runRef = useRef<RunState | null>(null);
   const screenRef = useRef<GameScreenState>(screen);
   const profileRef = useRef<PlayerProfile>(profile);
-  const hoverCellRef = useRef<GridCoord | null>(null);
+  const hoverPointRef = useRef<{ col: number; row: number; simX: number; simY: number } | null>(
+    null,
+  );
   const titleModalRef = useRef(titleModal);
   const panKeysRef = useRef<PanKeysState>({
     up: false,
@@ -194,7 +194,7 @@ export default function App() {
     const activeMode = modeOverride ?? profileRef.current.selectedMode;
     const newRun = createRunState(activeMode, profileRef.current);
     runRef.current = newRun;
-    hoverCellRef.current = null;
+    hoverPointRef.current = null;
     setOutcome(null);
     setTitleModal('none');
     titleModalRef.current = 'none';
@@ -227,7 +227,19 @@ export default function App() {
     if (!ev.inside) {
       run.selectedTowerId = null;
       run.pendingCombineTowerId = null;
+      run.pendingTacticalPing = false;
       syncHudFromRun();
+      return;
+    }
+
+    // 0. Place Tactical Ping when Ping Mode is armed, Shift+Click, or Middle-Click
+    if (ev.button === 1 || ev.shiftKey || run.pendingTacticalPing) {
+      const ping = addTacticalPing(run, ev.simX, ev.simY);
+      if (ping) {
+        soundEngine.playPing();
+        sceneRef.current?.spawnBurst(ping.x, ping.y, ping.color, 12, 2.5);
+        syncHudFromRun();
+      }
       return;
     }
 
@@ -244,7 +256,10 @@ export default function App() {
       return;
     }
 
-    const existing = run.towers.find((t) => t.col === ev.col && t.row === ev.row);
+    const existing = run.towers.find((t) => {
+      const tc = getTowerCoords(t);
+      return Math.hypot(tc.x - ev.simX, tc.y - ev.simY) <= 0.55;
+    });
 
     // 1b. Resolve Super Turret Fusion if Fusion Mode is active
     if (run.pendingCombineTowerId !== null) {
@@ -256,9 +271,10 @@ export default function App() {
           handleSimEvent,
         );
         if (res.ok && res.tower) {
+          const tc = getTowerCoords(res.tower);
           sceneRef.current?.spawnBurst(
-            res.tower.col + 0.5,
-            res.tower.row + 0.5,
+            tc.x,
+            tc.y,
             TOWER_DEFS[res.tower.type].accentColor,
             22,
             3.6,
@@ -279,14 +295,15 @@ export default function App() {
       return;
     }
 
-    // 3. Place selected buildable turret
+    // 3. Place selected buildable turret smoothly at exact cursor coordinates
     if (run.selectedBuildType) {
-      const res = placeTower(run, run.selectedBuildType, ev.col, ev.row);
+      const res = placeTower(run, run.selectedBuildType, ev.simX, ev.simY);
       if (res.ok && res.tower) {
         soundEngine.playPlace();
+        const tc = getTowerCoords(res.tower);
         sceneRef.current?.spawnBurst(
-          res.tower.col + 0.5,
-          res.tower.row + 0.5,
+          tc.x,
+          tc.y,
           TOWER_DEFS[res.tower.type].accentColor,
           10,
           2.2,
@@ -310,10 +327,12 @@ export default function App() {
     const scene3d = new BastionScene3D(container, {
       onHover: (ev) => {
         if (screenRef.current !== 'playing') {
-          hoverCellRef.current = null;
+          hoverPointRef.current = null;
           return;
         }
-        hoverCellRef.current = ev.inside ? { col: ev.col, row: ev.row } : null;
+        hoverPointRef.current = ev.inside
+          ? { col: ev.col, row: ev.row, simX: ev.simX, simY: ev.simY }
+          : null;
       },
       onClick: (ev) => handleBoardClickRef.current(ev),
     });
@@ -332,7 +351,6 @@ export default function App() {
       const curScreen = screenRef.current;
       const run = runRef.current;
 
-      // Pause/Gameover/Modals freeze continuous redraws so software-GL never starves the compositor
       const modalBlocking =
         (curScreen === 'title' && titleModalRef.current !== 'none') ||
         curScreen === 'paused' ||
@@ -357,6 +375,7 @@ export default function App() {
             .map((a) => Math.ceil(a.cooldownRemaining * 2))
             .join(',');
           const prevAutoWaveTick = Math.ceil(run.autoWaveTimer * 2);
+          const prevPingCount = run.tacticalPings.length;
 
           stepSimulation(run, dt, (ev) => {
             handleSimEvent(ev);
@@ -390,6 +409,7 @@ export default function App() {
               prevEnemiesRem !== curEnemiesRem ||
               prevAbilityTick !== curAbilityTick ||
               prevAutoWaveTick !== curAutoWaveTick ||
+              prevPingCount !== run.tacticalPings.length ||
               Boolean(run.draftOptions);
 
             if (discreteChanged) {
@@ -398,7 +418,7 @@ export default function App() {
           }
         }
 
-        scene3d.syncRun(run, hoverCellRef.current, dt, timeSec);
+        scene3d.syncRun(run, hoverPointRef.current, dt, timeSec);
       }
 
       if (!modalBlocking) {
@@ -406,7 +426,6 @@ export default function App() {
       }
     };
 
-    // Expose a wake-up trigger on window-independent ref so modal transitions resume loop
     const resumeLoop = () => {
       if (stopped) return;
       lastTime = performance.now();
@@ -482,6 +501,24 @@ export default function App() {
     syncHudFromRun();
   }, [syncHudFromRun]);
 
+  const handleTogglePingMode = useCallback(() => {
+    const run = runRef.current;
+    if (!run || screenRef.current !== 'playing') return;
+    run.pendingTacticalPing = !run.pendingTacticalPing;
+    if (run.pendingTacticalPing) {
+      run.pendingTargetingAbility = null;
+      run.pendingCombineTowerId = null;
+    }
+    syncHudFromRun();
+  }, [syncHudFromRun]);
+
+  const handleToggleEnemyPath = useCallback(() => {
+    const run = runRef.current;
+    if (!run || screenRef.current !== 'playing') return;
+    run.showEnemyPath = !run.showEnemyPath;
+    syncHudFromRun();
+  }, [syncHudFromRun]);
+
   const handleToggleSpeed = useCallback(() => {
     const run = runRef.current;
     if (!run) return;
@@ -513,9 +550,10 @@ export default function App() {
         soundEngine.playUpgrade();
         const t = run.towers.find((tower) => tower.id === id);
         if (t) {
+          const tc = getTowerCoords(t);
           sceneRef.current?.spawnBurst(
-            t.col + 0.5,
-            t.row + 0.5,
+            tc.x,
+            tc.y,
             TOWER_DEFS[t.type].accentColor,
             14,
             2.8,
@@ -536,6 +574,7 @@ export default function App() {
       run.pendingCombineTowerId = id;
       run.selectedTowerId = id;
       run.pendingTargetingAbility = null;
+      run.pendingTacticalPing = false;
       syncHudFromRun();
     },
     [syncHudFromRun],
@@ -577,6 +616,7 @@ export default function App() {
       if (id === 'orbital_lance' && !autoTarget) {
         run.pendingTargetingAbility =
           run.pendingTargetingAbility === 'orbital_lance' ? null : 'orbital_lance';
+        run.pendingTacticalPing = false;
         syncHudFromRun();
         return;
       }
@@ -678,6 +718,18 @@ export default function App() {
         return;
       }
 
+      if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        handleTogglePingMode();
+        return;
+      }
+
+      if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        handleToggleEnemyPath();
+        return;
+      }
+
       if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
         handlePauseToggle();
@@ -686,7 +738,10 @@ export default function App() {
 
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (run.pendingTargetingAbility) {
+        if (run.pendingTacticalPing) {
+          run.pendingTacticalPing = false;
+          syncHudFromRun();
+        } else if (run.pendingTargetingAbility) {
           run.pendingTargetingAbility = null;
           syncHudFromRun();
         } else if (run.pendingCombineTowerId !== null) {
@@ -707,6 +762,7 @@ export default function App() {
           run.selectedBuildType = towerType;
           run.pendingTargetingAbility = null;
           run.pendingCombineTowerId = null;
+          run.pendingTacticalPing = false;
           syncHudFromRun();
           return;
         }
@@ -765,7 +821,7 @@ export default function App() {
     };
 
     const onBlur = () => {
-      hoverCellRef.current = null;
+      hoverPointRef.current = null;
       panKeysRef.current = { up: false, down: false, left: false, right: false };
       sceneRef.current?.setPanKeys({ ...panKeysRef.current });
     };
@@ -788,7 +844,9 @@ export default function App() {
     handleSendWave,
     handleStartCombine,
     handleToggleAutoWave,
+    handleToggleEnemyPath,
     handleToggleMute,
+    handleTogglePingMode,
     handleUpgradeTower,
     startMission,
     syncHudFromRun,
@@ -805,12 +863,14 @@ export default function App() {
         <TitleScreen
           profile={profile}
           onSelectMode={(mode) => setProfile((p) => ({ ...p, selectedMode: mode }))}
-          onSelectLevel={(level) =>
+          onSelectLevel={(level) => {
+            const clamped = Math.max(1, Math.min(profileRef.current.highestUnlockedLevel, level));
+            titleMapRef.current = generateRandomMap(undefined, clamped);
             setProfile((p) => ({
               ...p,
-              selectedLevel: Math.max(1, Math.min(p.highestUnlockedLevel, level)),
-            }))
-          }
+              selectedLevel: clamped,
+            }));
+          }}
           onRerollLevelModifiers={(level) =>
             setProfile((p) => rerollLevelSeedInProfile(p, level))
           }
@@ -818,19 +878,20 @@ export default function App() {
           onOpenLevels={() => setTitleModal('levels')}
           onOpenLoadout={() => setTitleModal('loadout')}
           onOpenEvolutions={() => setTitleModal('evolutions')}
-          onOpenModifiers={() => setTitleModal('modifiers')}
         />
       )}
 
       {screen === 'title' && titleModal === 'levels' && (
         <LevelSelectModal
           profile={profile}
-          onSelectLevel={(level) =>
+          onSelectLevel={(level) => {
+            const clamped = Math.max(1, Math.min(profileRef.current.highestUnlockedLevel, level));
+            titleMapRef.current = generateRandomMap(undefined, clamped);
             setProfile((p) => ({
               ...p,
-              selectedLevel: Math.max(1, Math.min(p.highestUnlockedLevel, level)),
-            }))
-          }
+              selectedLevel: clamped,
+            }));
+          }}
           onRerollLevelModifiers={(level) =>
             setProfile((p) => rerollLevelSeedInProfile(p, level))
           }
@@ -861,17 +922,6 @@ export default function App() {
         />
       )}
 
-      {screen === 'title' && titleModal === 'modifiers' && (
-        <ModifiersModal
-          profile={profile}
-          onToggleModifier={(id: ModifierId) =>
-            setProfile((prev) => toggleModifierInProfile(prev, id))
-          }
-          onClearAll={() => setProfile((prev) => ({ ...prev, activeModifiers: [] }))}
-          onClose={() => setTitleModal('none')}
-        />
-      )}
-
       {/* Active Gameplay HUD */}
       {screen !== 'title' && hud && (
         <GameHud
@@ -883,10 +933,13 @@ export default function App() {
             run.selectedBuildType = type;
             run.pendingTargetingAbility = null;
             run.pendingCombineTowerId = null;
+            run.pendingTacticalPing = false;
             syncHudFromRun();
           }}
           onStartWave={handleSendWave}
           onToggleAutoWave={handleToggleAutoWave}
+          onTogglePingMode={handleTogglePingMode}
+          onToggleEnemyPath={handleToggleEnemyPath}
           onRerollMap={handleRerollMap}
           onToggleSpeed={handleToggleSpeed}
           onToggleMute={handleToggleMute}
@@ -926,7 +979,7 @@ export default function App() {
           onRestart={() => startMission()}
           onMainMenu={() => {
             runRef.current = null;
-            titleMapRef.current = generateRandomMap();
+            titleMapRef.current = generateRandomMap(undefined, profileRef.current.selectedLevel);
             setOutcome(null);
             setDraftChoices(null);
             setHud(null);

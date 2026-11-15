@@ -21,9 +21,9 @@ import {
   rerollLevelSeedInProfile,
   setTowerApexChoice,
   toggleEquipTowerInProfile,
-  toggleModifierInProfile,
 } from './progression';
 import {
+  addTacticalPing,
   applyPowerUpChoice,
   canBuildTower,
   canCombineTowers,
@@ -37,11 +37,14 @@ import {
   generateWaveSpawns,
   getDeployedCountByType,
   getUsedGridCapacity,
+  isEnemyTargetable,
   placeTower,
+  PORTAL_EMERGENCE_DISTANCE,
   rerollRunMap,
   sellTower,
   startNextWave,
   stepSimulation,
+  TACTICAL_PING_DURATION,
   triggerActiveAbility,
   upgradeTower,
 } from './simulation';
@@ -90,22 +93,43 @@ test('tower evolutions spend shards and improve effective tower stats', () => {
   assert.equal(stats.appliesVulnerability, true);
 });
 
-test('end-game modifiers increase hazard rating, reward multiplier, and constrain run rules', () => {
+test('level modifiers increase hazard rating, reward multiplier, and constrain run rules automatically', () => {
   let profile = createDefaultProfile();
-  assert.equal(computeHazardRating(profile.activeModifiers), 0);
-  assert.equal(computeModifierRewardMultiplier(profile.activeModifiers), 1);
+  assert.equal(computeHazardRating([]), 0);
+  assert.equal(computeModifierRewardMultiplier([]), 1);
 
-  profile = toggleModifierInProfile(profile, 'armored_vanguard');
-  profile = toggleModifierInProfile(profile, 'fragile_bastion');
-  profile = toggleModifierInProfile(profile, 'austerity');
+  assert.equal(
+    computeHazardRating(['armored_vanguard', 'fragile_bastion', 'austerity']),
+    6,
+  );
+  assert.equal(
+    computeModifierRewardMultiplier(['armored_vanguard', 'fragile_bastion', 'austerity']),
+    2.1,
+  );
+  assert.equal(
+    computeTotalRewardMultiplier('blitz', ['armored_vanguard', 'fragile_bastion', 'austerity']),
+    2.63,
+  );
 
-  assert.equal(computeHazardRating(profile.activeModifiers), 6);
-  assert.equal(computeModifierRewardMultiplier(profile.activeModifiers), 2.1);
-  assert.equal(computeTotalRewardMultiplier('blitz', profile.activeModifiers), 2.63);
-
-  const run = createRunState('standard', profile, 123456);
-  assert.equal(run.lives, 10);
-  assert.equal(run.scrap, Math.round(210 * 0.75));
+  // Find a seed for level 1 that rolls fragile_bastion or austerity and verify createRunState applies only levelModifiers
+  let testedFragile = false;
+  let testedAusterity = false;
+  for (let s = 100; s < 500 && (!testedFragile || !testedAusterity); s++) {
+    const mods = rollRandomLevelModifiers(1, s);
+    const p = { ...profile, selectedLevel: 1, levelSeeds: { ...profile.levelSeeds, 1: s } };
+    const run = createRunState('standard', p, 123456);
+    assert.deepEqual(run.activeModifiers, run.levelModifiers);
+    assert.deepEqual(run.levelModifiers, mods);
+    if (mods.includes('fragile_bastion')) {
+      assert.equal(run.lives, 10);
+      testedFragile = true;
+    }
+    if (mods.includes('austerity')) {
+      assert.equal(run.scrap, Math.round(210 * 0.75));
+      testedAusterity = true;
+    }
+  }
+  assert.ok(testedFragile && testedAusterity, 'Random level modifiers should exercise hazard constraints');
 });
 
 test('tower placement, upgrade, targeting priority, sell, and map reroll work cleanly', () => {
@@ -501,14 +525,18 @@ test('campaign levels 1-8 escalate difficulty, roll random modifiers, and unlock
     assert.ok(curr.rewardMultiplier > prev.rewardMultiplier, `Level ${curr.level} reward mult must increase`);
   }
 
-  // Verify random modifier counts match LevelDef expectations and reroll updates them
+  // Verify random modifier counts match LevelDef expectations (>=1 on every level) and reroll updates them
   let profile = createDefaultProfile();
-  assert.equal(rollRandomLevelModifiers(1, profile.levelSeeds[1]).length, 0);
+  for (let lvl = 1; lvl <= MAX_LEVEL; lvl++) {
+    const rolled = rollRandomLevelModifiers(lvl, profile.levelSeeds[lvl]);
+    assert.ok(rolled.length >= 1, `Level ${lvl} must roll at least 1 random modifier`);
+    assert.equal(rolled.length, getLevelDef(lvl).randomModifierCount);
+    assert.equal(new Set(rolled).size, rolled.length); // distinct modifiers
+  }
   const lv4ModsA = rollRandomLevelModifiers(4, profile.levelSeeds[4]);
   const lv8ModsA = rollRandomLevelModifiers(8, profile.levelSeeds[8]);
   assert.equal(lv4ModsA.length, getLevelDef(4).randomModifierCount);
   assert.equal(lv8ModsA.length, getLevelDef(8).randomModifierCount);
-  assert.equal(new Set(lv8ModsA).size, lv8ModsA.length); // distinct modifiers
 
   // Rerolling level 4 seed changes rolled modifiers across seeds
   let foundDifferent = false;
@@ -572,4 +600,182 @@ test('turret card stat computations produce exact ATK, RNG, and SPA (seconds per
     assert.ok(spa > 0 && Number.isFinite(spa));
   }
 });
+
+test('all 8 levels generate valid non-overlapping distinct trails and preserve level across rerolls', () => {
+  const pathSignatures = new Set<string>();
+  for (let level = 1; level <= MAX_LEVEL; level++) {
+    const def = getLevelDef(level);
+    assert.ok(def.biome.length > 0, `Level ${level} must define a biome theme`);
+
+    for (let s = 0; s < 15; s++) {
+      const m = generateRandomMap(42000 + s * 6133 + level * 97, level);
+      assert.equal(m.level, level);
+      assert.equal(isValidPath(m), true, `Level ${level} seed ${m.seed} path must be valid`);
+      assert.ok(m.path.length >= 20, `Level ${level} path length ${m.path.length} should be >= 20`);
+    }
+
+    const sampleMap = generateRandomMap(77777, level);
+    const sig = sampleMap.path.map((p) => `${p.col},${p.row}`).join('>');
+    pathSignatures.add(sig);
+  }
+
+  // Every level 1-8 has a distinct trail layout
+  assert.equal(
+    pathSignatures.size,
+    MAX_LEVEL,
+    `Expected ${MAX_LEVEL} unique level trail signatures, got ${pathSignatures.size}`,
+  );
+
+  // Reroll preserves run.level on map
+  let profile = createDefaultProfile();
+  profile = { ...profile, highestUnlockedLevel: 8, selectedLevel: 5 };
+  let run = createRunState('standard', profile, 121212);
+  assert.equal(run.map.level, 5);
+  run = rerollRunMap(run, 343434);
+  assert.equal(run.map.level, 5);
+  assert.equal(isValidPath(run.map), true);
+});
+
+test('tactical ping places context beacons, enforces cap, expires cleanly, and prioritizes enemies on path pings', () => {
+  const profile = createDefaultProfile();
+  const run = createRunState('standard', profile, 246810);
+  assert.equal(run.showEnemyPath, true);
+  assert.equal(run.pendingTacticalPing, false);
+
+  const spawnCoord = run.map.spawn;
+  const pathCoord = run.map.path[2];
+  let buildCoord = { col: 0, row: 0 };
+  outer: for (let r = 0; r < run.map.rows; r++) {
+    for (let c = 0; c < run.map.cols; c++) {
+      if (run.map.tiles[r][c] === 'buildable') {
+        buildCoord = { col: c, row: r };
+        break outer;
+      }
+    }
+  }
+
+  const pFocus = addTacticalPing(run, pathCoord.col, pathCoord.row);
+  assert.ok(pFocus);
+  assert.equal(pFocus.kind, 'focus');
+  assert.equal(pFocus.label, 'FOCUS');
+
+  const pBuild = addTacticalPing(run, buildCoord.col, buildCoord.row);
+  assert.ok(pBuild);
+  assert.equal(pBuild.kind, 'build');
+  assert.equal(pBuild.label, 'BUILD');
+
+  const pSpawn = addTacticalPing(run, spawnCoord.col, spawnCoord.row);
+  assert.ok(pSpawn);
+  assert.equal(pSpawn.kind, 'focus');
+
+  // Add 2 more pings -> capped at 4 active pings
+  addTacticalPing(run, buildCoord.col, buildCoord.row);
+  addTacticalPing(run, pathCoord.col, pathCoord.row);
+  assert.equal(run.tacticalPings.length, 4);
+
+  // Pings decay and expire after TACTICAL_PING_DURATION
+  const steps = Math.ceil((TACTICAL_PING_DURATION + 0.5) / 0.05);
+  for (let i = 0; i < steps; i++) {
+    stepSimulation(run, 0.05);
+  }
+  assert.equal(run.tacticalPings.length, 0);
+});
+
+test('portal emergence grace prevents spawn-camping before enemies exit the gate and base SPAs are balanced', () => {
+  const profile = createDefaultProfile();
+  const run = createRunState('standard', profile, 135790);
+
+  // All base turrets should have balanced tactical SPA (>= 0.55s) so enemies can emerge cleanly
+  for (const id of ['cannon', 'cryo', 'tesla', 'rail', 'pyro', 'missile', 'laser', 'chrono'] as const) {
+    const def = TOWER_DEFS[id];
+    const spa = 1 / def.fireRate;
+    assert.ok(spa >= 0.55, `${id} SPA ${spa.toFixed(2)}s should be >= 0.55s`);
+  }
+
+  // Place a cannon next to spawn portal
+  const spawn = run.map.spawn;
+  for (const [dc, dr] of [
+    [0, -1],
+    [0, 1],
+    [1, 0],
+    [-1, 0],
+    [1, 1],
+    [1, -1],
+  ]) {
+    if (canPlaceTowerAt(run, spawn.col + dc, spawn.row + dr)) {
+      placeTower(run, 'cannon', spawn.col + dc, spawn.row + dr);
+      break;
+    }
+  }
+  assert.equal(run.towers.length, 1);
+
+  assert.equal(startNextWave(run), true);
+  // Step enough for first enemy to spawn inside portal, before PORTAL_EMERGENCE_DISTANCE
+  for (let i = 0; i < 6; i++) {
+    stepSimulation(run, 1 / 30);
+    if (run.enemies.length > 0) break;
+  }
+  assert.ok(run.enemies.length >= 1);
+  const firstEnemy = run.enemies[0];
+  assert.ok(firstEnemy.distanceTraveled < PORTAL_EMERGENCE_DISTANCE);
+  assert.equal(isEnemyTargetable(firstEnemy), false);
+  assert.equal(firstEnemy.hp, firstEnemy.maxHp);
+
+  // Advance until first enemy emerges past portal threshold -> cannon acquires and shoots
+  let firedAfterEmerge = false;
+  for (let i = 0; i < 60; i++) {
+    stepSimulation(run, 1 / 30, (ev) => {
+      if (ev.type === 'shoot') firedAfterEmerge = true;
+    });
+    if (firedAfterEmerge) break;
+  }
+  assert.equal(firedAfterEmerge, true);
+});
+
+test('maps omit elevated vantage platforms and support smooth freeform fractional turret placement', () => {
+  const profile = createDefaultProfile();
+  const run = createRunState('standard', profile, 242424);
+  run.scrap = 1000;
+
+  // Verify zero vantage tiles exist on generated maps across levels
+  for (let level = 1; level <= MAX_LEVEL; level++) {
+    const map = generateRandomMap(51515 + level, level);
+    const hasVantage = map.tiles.some((row) => row.some((t) => t === 'vantage'));
+    assert.equal(hasVantage, false, `Level ${level} should not spawn vantage platforms`);
+  }
+
+  // Find a buildable spot with clean clearance and place at fractional coordinates
+  let spot: { x: number; y: number } | null = null;
+  outer: for (let r = 1; r < run.map.rows - 1; r++) {
+    for (let c = 1; c < run.map.cols - 1; c++) {
+      const fx = c + 0.37;
+      const fy = r + 0.64;
+      if (canPlaceTowerAt(run, fx, fy) && canPlaceTowerAt(run, fx + 0.9, fy)) {
+        spot = { x: fx, y: fy };
+        break outer;
+      }
+    }
+  }
+  assert.ok(spot, 'Should find fractional placement location');
+
+  const res = placeTower(run, 'cannon', spot!.x, spot!.y);
+  assert.equal(res.ok, true);
+  assert.ok(Math.abs(res.tower!.x - spot!.x) < 0.001);
+  assert.ok(Math.abs(res.tower!.y - spot!.y) < 0.001);
+  assert.equal(res.tower!.onVantage, false);
+
+  // Overlapping within minimum spacing radius must be rejected
+  assert.equal(canPlaceTowerAt(run, spot!.x + 0.25, spot!.y + 0.2), false);
+
+  // Neighboring fractional spot beyond min spacing must succeed cleanly
+  const resNeighbor = placeTower(run, 'cryo', spot!.x + 0.9, spot!.y);
+  assert.equal(resNeighbor.ok, true);
+
+  // Clicking directly on the path center must be rejected
+  const midPath = run.map.path[Math.floor(run.map.path.length / 2)];
+  assert.equal(canPlaceTowerAt(run, midPath.col + 0.5, midPath.row + 0.5), false);
+});
+
+
+
 
