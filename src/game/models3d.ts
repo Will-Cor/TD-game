@@ -66,16 +66,18 @@ export function createTowerModel(
   const secondaryColor = hexToNum(def.secondaryColor ?? def.accentColor);
 
   const baseMetal = new THREE.MeshStandardMaterial({
-    color: level >= 3 ? 0x263445 : 0x2e3d4f,
-    map: textures.metalMap,
-    roughness: 0.56,
-    metalness: 0.55,
+    color: level >= 3 ? 0x1d2733 : 0x24303d,
+    roughness: 0.58,
+    metalness: 0.62,
+    bumpMap: textures.metalBump,
+    bumpScale: 0.015,
   });
   const chassisMetal = new THREE.MeshStandardMaterial({
-    color: level === 1 ? 0x4b5e73 : level === 2 ? 0x607790 : 0x7a93ad,
-    map: textures.metalMap,
-    roughness: level >= 2 ? 0.34 : 0.44,
-    metalness: level >= 2 ? 0.72 : 0.62,
+    color: level === 1 ? 0x3b4a59 : level === 2 ? 0x4c6074 : 0x62788f,
+    roughness: level >= 2 ? 0.3 : 0.42,
+    metalness: level >= 2 ? 0.82 : 0.7,
+    bumpMap: textures.metalBump,
+    bumpScale: 0.012,
   });
   const barrelSteel = new THREE.MeshStandardMaterial({
     color: level === 3 ? 0xf1f5f9 : 0xcbd5e1,
@@ -1333,13 +1335,10 @@ export function createBastionCitadelModel(): LandmarkHandle {
   };
 }
 
-export function createRockClusterModel(
-  seed: number,
-  themeColors?: { rockColor: number; crystalColor: number; crystalEmissive: number },
-): THREE.Group {
+export function createRockClusterModel(seed: number): THREE.Group {
   const group = new THREE.Group();
   const rockMat = new THREE.MeshStandardMaterial({
-    color: themeColors?.rockColor ?? 0x354352,
+    color: 0x354352,
     roughness: 0.85,
     metalness: 0.14,
     flatShading: true,
@@ -1350,8 +1349,8 @@ export function createRockClusterModel(
   const isAmberVein = seed % 2 === 0;
 
   const crystalMat = new THREE.MeshStandardMaterial({
-    color: themeColors ? themeColors.crystalColor : isAmberVein ? 0xf59e0b : 0x38bdf8,
-    emissive: themeColors ? themeColors.crystalEmissive : isAmberVein ? 0xb45309 : 0x0284c7,
+    color: isAmberVein ? 0xf59e0b : 0x38bdf8,
+    emissive: isAmberVein ? 0xb45309 : 0x0284c7,
     emissiveIntensity: 0.85,
     roughness: 0.25,
     metalness: 0.3,

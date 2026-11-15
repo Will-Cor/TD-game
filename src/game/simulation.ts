@@ -27,20 +27,10 @@ import type {
   PowerUpId,
   RunOutcome,
   RunState,
-  TacticalPing,
-  TacticalPingKind,
   TargetPriority,
   TowerType,
   WaveSpawnEntry,
 } from './types';
-
-export const PORTAL_EMERGENCE_DISTANCE = 0.85;
-export const TACTICAL_PING_DURATION = 7.0;
-export const TACTICAL_PING_FOCUS_RADIUS = 1.85;
-
-export function isEnemyTargetable(enemy: Pick<EnemyInstance, 'dead' | 'reachedExit' | 'distanceTraveled'>): boolean {
-  return !enemy.dead && !enemy.reachedExit && enemy.distanceTraveled >= PORTAL_EMERGENCE_DISTANCE;
-}
 
 export interface SimEvent {
   type:
@@ -92,7 +82,7 @@ export function createRunState(
   const levelDef = getLevelDef(level);
   const levelSeed = profile.levelSeeds?.[level] ?? (seed ?? 1337);
   const levelModifiers = rollRandomLevelModifiers(level, levelSeed);
-  const modifiers = [...levelModifiers];
+  const modifiers = Array.from(new Set([...levelModifiers, ...profile.activeModifiers]));
 
   const hasAusterity = modifiers.includes('austerity');
   const hasFragile = modifiers.includes('fragile_bastion');
@@ -108,7 +98,7 @@ export function createRunState(
   return {
     mode,
     level,
-    map: generateRandomMap(seed, level),
+    map: generateRandomMap(seed),
     scrap: startingScrap,
     lives: startingLives,
     maxLives: startingLives,
@@ -126,9 +116,6 @@ export function createRunState(
     arcs: [],
     rings: [],
     floatingTexts: [],
-    tacticalPings: [],
-    pendingTacticalPing: false,
-    showEnemyPath: true,
     nextEntityId: 1,
     passivePowerUps: [],
     activeAbilities: [],
@@ -162,7 +149,7 @@ export function rerollRunMap(run: RunState, seed?: number): RunState {
   }
   return {
     ...run,
-    map: generateRandomMap(seed, run.level),
+    map: generateRandomMap(seed),
     towers: [],
     selectedTowerId: null,
     pendingCombineTowerId: null,
@@ -403,94 +390,11 @@ export function computeTowerEffectiveStats(
   };
 }
 
-export const TOWER_MIN_SPACING = 0.78;
-export const TOWER_PATH_CLEARANCE = 0.84;
-export const TOWER_OBSTACLE_CLEARANCE = 0.82;
-
-export function getTowerCoords(
-  tower: Pick<PlacedTower, 'col' | 'row'> & Partial<Pick<PlacedTower, 'x' | 'y'>>,
-): { x: number; y: number } {
-  return {
-    x: tower.x ?? tower.col + 0.5,
-    y: tower.y ?? tower.row + 0.5,
-  };
-}
-
-export function normalizePlacementPoint(
-  colOrX: number,
-  rowOrY: number,
-): { x: number; y: number } {
-  if (Number.isInteger(colOrX) && Number.isInteger(rowOrY)) {
-    return { x: colOrX + 0.5, y: rowOrY + 0.5 };
-  }
-  return { x: colOrX, y: rowOrY };
-}
-
-function distPointToSegment(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): number {
-  const vx = bx - ax;
-  const vy = by - ay;
-  const lenSq = vx * vx + vy * vy;
-  if (lenSq <= 0.000001) return Math.hypot(px - ax, py - ay);
-  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / lenSq));
-  return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
-}
-
-export function isPointNearPath(run: Pick<RunState, 'map'>, x: number, y: number, margin: number): boolean {
-  const path = run.map.path;
-  for (let i = 0; i < path.length; i++) {
-    const a = path[i];
-    const ax = a.col + 0.5;
-    const ay = a.row + 0.5;
-    if (i < path.length - 1) {
-      const b = path[i + 1];
-      if (distPointToSegment(x, y, ax, ay, b.col + 0.5, b.row + 0.5) < margin) {
-        return true;
-      }
-    } else if (Math.hypot(x - ax, y - ay) < margin) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function canPlaceTowerAt(run: RunState, colOrX: number, rowOrY: number): boolean {
-  const { x, y } = normalizePlacementPoint(colOrX, rowOrY);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  if (x < 0.45 || x > run.map.cols - 0.45 || y < 0.45 || y > run.map.rows - 0.45) {
-    return false;
-  }
-
-  // Must stay outside sunken path trench & spawn/exit portals
-  if (isPointNearPath(run, x, y, TOWER_PATH_CLEARANCE)) {
-    return false;
-  }
-
-  // Must stay clear of obstacle props/structures
-  for (let r = 0; r < run.map.rows; r++) {
-    for (let c = 0; c < run.map.cols; c++) {
-      if (run.map.tiles[r][c] === 'obstacle') {
-        if (Math.hypot(x - (c + 0.5), y - (r + 0.5)) < TOWER_OBSTACLE_CLEARANCE) {
-          return false;
-        }
-      }
-    }
-  }
-
-  // Smooth collision radius against already placed turrets
-  for (const t of run.towers) {
-    const tc = getTowerCoords(t);
-    if (Math.hypot(x - tc.x, y - tc.y) < TOWER_MIN_SPACING) {
-      return false;
-    }
-  }
-  return true;
+export function canPlaceTowerAt(run: RunState, col: number, row: number): boolean {
+  if (col < 0 || col >= run.map.cols || row < 0 || row >= run.map.rows) return false;
+  const tile = run.map.tiles[row][col];
+  if (tile !== 'buildable' && tile !== 'vantage') return false;
+  return !run.towers.some((t) => t.col === col && t.row === row);
 }
 
 export function getDeployedCountByType(
@@ -542,30 +446,25 @@ export function canBuildTower(
 export function placeTower(
   run: RunState,
   type: BaseTowerType,
-  colOrX: number,
-  rowOrY: number,
+  col: number,
+  row: number,
 ): { ok: boolean; tower?: PlacedTower; reason?: string } {
   const buildCheck = canBuildTower(run, type);
   if (!buildCheck.ok) return buildCheck;
 
   const def = TOWER_DEFS[type];
   if (run.scrap < def.cost) return { ok: false, reason: 'Insufficient scrap' };
-  if (!canPlaceTowerAt(run, colOrX, rowOrY)) return { ok: false, reason: 'Blocked terrain' };
+  if (!canPlaceTowerAt(run, col, row)) return { ok: false, reason: 'Invalid tile' };
 
-  const { x, y } = normalizePlacementPoint(colOrX, rowOrY);
-  const col = Math.max(0, Math.min(run.map.cols - 1, Math.floor(x)));
-  const row = Math.max(0, Math.min(run.map.rows - 1, Math.floor(y)));
-
+  const onVantage = run.map.tiles[row][col] === 'vantage';
   const tower: PlacedTower = {
     id: run.nextEntityId++,
     type,
     col,
     row,
-    x,
-    y,
     level: 1,
     priority: 'first',
-    onVantage: false,
+    onVantage,
     totalSpent: def.cost,
     kills: 0,
     damageDealt: 0,
@@ -591,10 +490,9 @@ export function upgradeTower(run: RunState, towerId: number): boolean {
   run.scrap -= stats.upgradeCost;
   tower.totalSpent += stats.upgradeCost;
   tower.level = (tower.level + 1) as 2 | 3;
-  const tc = getTowerCoords(tower);
   run.rings.push({
-    x: tc.x,
-    y: tc.y,
+    x: tower.col + 0.5,
+    y: tower.row + 0.5,
     radius: 0.2,
     maxRadius: 1.0,
     color: TOWER_DEFS[tower.type].accentColor,
@@ -653,10 +551,9 @@ export function combineTowers(
   run.pendingCombineTowerId = null;
 
   const def = TOWER_DEFS[superType];
-  const tc = getTowerCoords(primary);
   run.rings.push({
-    x: tc.x,
-    y: tc.y,
+    x: primary.col + 0.5,
+    y: primary.row + 0.5,
     radius: 0.2,
     maxRadius: 1.6,
     color: def.accentColor,
@@ -664,8 +561,8 @@ export function combineTowers(
     maxLife: 0.5,
   });
   run.floatingTexts.push({
-    x: tc.x,
-    y: tc.y - 0.25,
+    x: primary.col + 0.5,
+    y: primary.row + 0.25,
     vy: -0.7,
     text: `${def.name}!`,
     color: '#FBBF24',
@@ -700,72 +597,6 @@ export function cycleTowerPriority(run: RunState, towerId: number): TargetPriori
   const next = order[(order.indexOf(tower.priority) + 1) % order.length];
   tower.priority = next;
   return next;
-}
-
-export function addTacticalPing(
-  run: RunState,
-  colOrX: number,
-  rowOrY: number,
-): TacticalPing | null {
-  const { x: px, y: py } = normalizePlacementPoint(colOrX, rowOrY);
-  const col = Math.floor(px);
-  const row = Math.floor(py);
-  if (col < 0 || col >= run.map.cols || row < 0 || row >= run.map.rows) {
-    return null;
-  }
-  const tile = run.map.tiles[row]?.[col];
-  let kind: TacticalPingKind = 'build';
-  let label = 'BUILD';
-  let color = '#38BDF8';
-  if (tile === 'path' || tile === 'spawn' || tile === 'exit' || isPointNearPath(run, px, py, 0.6)) {
-    kind = 'focus';
-    label = 'FOCUS';
-    color = '#F97316';
-  } else if (tile === 'obstacle') {
-    kind = 'defend';
-    label = 'HOLD';
-    color = '#FBBF24';
-  }
-
-  const ping: TacticalPing = {
-    id: run.nextEntityId++,
-    col,
-    row,
-    x: px,
-    y: py,
-    kind,
-    label,
-    color,
-    life: TACTICAL_PING_DURATION,
-    maxLife: TACTICAL_PING_DURATION,
-  };
-
-  if (run.tacticalPings.length >= 4) {
-    run.tacticalPings.shift();
-  }
-  run.tacticalPings.push(ping);
-  run.pendingTacticalPing = false;
-
-  run.rings.push({
-    x: px,
-    y: py,
-    radius: 0.2,
-    maxRadius: kind === 'focus' ? TACTICAL_PING_FOCUS_RADIUS : 1.15,
-    color,
-    life: 0.5,
-    maxLife: 0.5,
-  });
-  run.floatingTexts.push({
-    x: px,
-    y: py - 0.25,
-    vy: -0.5,
-    text: label,
-    color,
-    life: 1.0,
-    maxLife: 1.0,
-  });
-
-  return ping;
 }
 
 export function generateWaveSpawns(
@@ -1028,16 +859,14 @@ function pickTargetForTower(
   tower: PlacedTower,
   range: number,
   enemies: EnemyInstance[],
-  tacticalPings: TacticalPing[] = [],
 ): EnemyInstance | null {
-  const { x: tx, y: ty } = getTowerCoords(tower);
+  const tx = tower.col + 0.5;
+  const ty = tower.row + 0.5;
   let best: EnemyInstance | null = null;
   let bestScore = -Infinity;
 
-  const focusPings = tacticalPings.filter((p) => p.kind === 'focus' && p.life > 0);
-
   for (const e of enemies) {
-    if (!isEnemyTargetable(e)) continue;
+    if (e.dead || e.reachedExit) continue;
     const dx = e.x - tx;
     const dy = e.y - ty;
     const dist = Math.hypot(dx, dy);
@@ -1050,14 +879,6 @@ function pickTargetForTower(
       score = e.hp + e.shield * 1.1;
     } else {
       score = -dist;
-    }
-
-    if (
-      focusPings.some(
-        (fp) => Math.hypot(e.x - fp.x, e.y - fp.y) <= TACTICAL_PING_FOCUS_RADIUS,
-      )
-    ) {
-      score += 10000;
     }
 
     if (score > bestScore) {
@@ -1139,10 +960,9 @@ export function triggerActiveAbility(
     slot.cooldownRemaining = slot.maxCooldown;
     run.pendingTargetingAbility = null;
     for (const t of run.towers) {
-      const tc = getTowerCoords(t);
       run.rings.push({
-        x: tc.x,
-        y: tc.y,
+        x: t.col + 0.5,
+        y: t.row + 0.5,
         radius: 0.15,
         maxRadius: 0.85,
         color: '#E5A93C',
@@ -1182,10 +1002,10 @@ export function triggerActiveAbility(
     let cx = targetX;
     let cy = targetY;
     if (cx === undefined || cy === undefined) {
-      // Auto-pick lead living enemy outside portal if activated via keyboard
+      // Auto-pick lead living enemy if activated via keyboard
       const target =
         run.enemies
-          .filter((e) => isEnemyTargetable(e))
+          .filter((e) => !e.dead && !e.reachedExit)
           .sort((a, b) => b.distanceTraveled - a.distanceTraveled)[0] ?? null;
       if (!target) return false;
       cx = target.x;
@@ -1200,7 +1020,7 @@ export function triggerActiveAbility(
     const blastRadius = 2.15;
     const baseDmg = 180 + run.wave * 32;
     for (const e of run.enemies) {
-      if (!isEnemyTargetable(e)) continue;
+      if (e.dead || e.reachedExit) continue;
       if (Math.hypot(e.x - cx, e.y - cy) <= blastRadius + e.radius) {
         e.stunTimer = Math.max(e.stunTimer, 0.8);
         applyDamageToEnemy(
@@ -1294,10 +1114,6 @@ export function stepSimulation(
     ft.life -= dt;
     ft.y += ft.vy * dt;
     if (ft.life <= 0) run.floatingTexts.splice(i, 1);
-  }
-  for (let i = run.tacticalPings.length - 1; i >= 0; i--) {
-    run.tacticalPings[i].life -= dt;
-    if (run.tacticalPings[i].life <= 0) run.tacticalPings.splice(i, 1);
   }
 
   // Handle brief defeat delay before popping Game Over modal
@@ -1469,7 +1285,8 @@ export function stepSimulation(
   // Update towers & firing
   for (const tower of run.towers) {
     const stats = computeTowerEffectiveStats(tower, run);
-    const { x: tx, y: ty } = getTowerCoords(tower);
+    const tx = tower.col + 0.5;
+    const ty = tower.row + 0.5;
 
     // Glacial Pulse Apex for Cryo Mortar
     if (stats.hasGlacialPulse) {
@@ -1478,7 +1295,7 @@ export function stepSimulation(
         tower.pulseTimer = 6.0;
         let hitAny = false;
         for (const e of run.enemies) {
-          if (!isEnemyTargetable(e)) continue;
+          if (e.dead || e.reachedExit) continue;
           if (Math.hypot(e.x - tx, e.y - ty) <= stats.range) {
             e.stunTimer = Math.max(e.stunTimer, 1.1);
             e.slowTimer = Math.max(e.slowTimer, stats.slowDuration);
@@ -1504,7 +1321,7 @@ export function stepSimulation(
       tower.cooldown -= simDt;
     }
 
-    const target = pickTargetForTower(tower, stats.range, run.enemies, run.tacticalPings);
+    const target = pickTargetForTower(tower, stats.range, run.enemies);
     if (target) {
       tower.angle = Math.atan2(target.y - ty, target.x - tx);
 
@@ -1600,11 +1417,11 @@ export function stepSimulation(
               });
             }
 
-            // Find next nearest targetable enemy within 2.3 tiles
+            // Find next nearest enemy within 2.3 tiles
             let nextEnemy: EnemyInstance | null = null;
             let bestDist = 2.3;
             for (const cand of run.enemies) {
-              if (!isEnemyTargetable(cand) || hitSet.has(cand.id)) continue;
+              if (cand.dead || cand.reachedExit || hitSet.has(cand.id)) continue;
               const d = Math.hypot(cand.x - curTarget.x, cand.y - curTarget.y);
               if (d <= bestDist) {
                 bestDist = d;
@@ -1633,7 +1450,7 @@ export function stepSimulation(
           const maxLen = stats.range + 0.35;
 
           const candidates = run.enemies
-            .filter((e) => isEnemyTargetable(e))
+            .filter((e) => !e.dead && !e.reachedExit)
             .map((e) => {
               const rx = e.x - tx;
               const ry = e.y - ty;
@@ -1813,11 +1630,11 @@ export function stepSimulation(
 
       let collided = false;
       for (const e of run.enemies) {
-        if (!isEnemyTargetable(e)) continue;
+        if (e.dead || e.reachedExit) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= e.radius + 0.18) {
           if (p.splashRadius > 0) {
             for (const splashEnemy of run.enemies) {
-              if (!isEnemyTargetable(splashEnemy)) continue;
+              if (splashEnemy.dead || splashEnemy.reachedExit) continue;
               if (
                 Math.hypot(splashEnemy.x - p.x, splashEnemy.y - p.y) <=
                 p.splashRadius + splashEnemy.radius
@@ -1880,7 +1697,7 @@ export function stepSimulation(
       const step = p.speed * simDt;
       if (dist <= step + 0.12) {
         for (const e of run.enemies) {
-          if (!isEnemyTargetable(e)) continue;
+          if (e.dead || e.reachedExit) continue;
           if (Math.hypot(e.x - p.targetX, e.y - p.targetY) <= p.splashRadius + e.radius) {
             e.slowTimer = Math.max(e.slowTimer, p.slowDuration);
             e.slowFactor = Math.max(e.slowFactor, p.slowFactor);
@@ -1918,7 +1735,7 @@ export function stepSimulation(
       p.y += p.vy * simDt;
 
       for (const e of run.enemies) {
-        if (!isEnemyTargetable(e) || p.hitIds.includes(e.id)) continue;
+        if (e.dead || e.reachedExit || p.hitIds.includes(e.id)) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= e.radius + 0.24) {
           const isFirstHit = p.hitIds.length === 0;
           p.hitIds.push(e.id);

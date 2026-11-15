@@ -147,11 +147,6 @@ class SoundEngine {
     });
   }
 
-  playPing() {
-    this.playTone(880, 1320, 0.11, 'sine', 0.065);
-    setTimeout(() => this.playTone(1320, 1760, 0.16, 'triangle', 0.05), 55);
-  }
-
   playDefeat() {
     const notes = [293.66, 261.63, 220, 164.81];
     notes.forEach((n, idx) => {

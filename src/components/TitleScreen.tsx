@@ -20,6 +20,7 @@ interface TitleScreenProps {
   onOpenLevels: () => void;
   onOpenLoadout: () => void;
   onOpenEvolutions: () => void;
+  onOpenModifiers: () => void;
 }
 
 const MODE_ORDER: GameModeId[] = ['standard', 'blitz', 'endless'];
@@ -33,15 +34,17 @@ export function TitleScreen({
   onOpenLevels,
   onOpenLoadout,
   onOpenEvolutions,
+  onOpenModifiers,
 }: TitleScreenProps) {
   const modeDef = GAME_MODES[profile.selectedMode];
   const levelDef = getLevelDef(profile.selectedLevel);
   const levelSeed = profile.levelSeeds?.[levelDef.level] ?? levelDef.level * 1337 + 42;
   const levelRandomMods = rollRandomLevelModifiers(levelDef.level, levelSeed);
+  const combinedMods = Array.from(new Set([...levelRandomMods, ...profile.activeModifiers]));
 
   const rewardMult = computeTotalRewardMultiplier(
     profile.selectedMode,
-    levelRandomMods,
+    combinedMods,
     levelDef.level,
   );
   const totalEvoTier = Object.values(profile.evolutions).reduce((acc, e) => acc + e.tier, 0);
@@ -60,50 +63,45 @@ export function TitleScreen({
         className="pointer-events-none fixed inset-y-0 left-0 w-full max-w-2xl bg-gradient-to-r from-[#0B1015]/95 via-[#0B1015]/80 to-transparent"
       />
 
-      {/* Top Right Resource Readout */}
+      {/* Top Right Quiet Resource Readout */}
       <div className="relative z-10 flex items-center justify-end">
-        <div className="ui-frame pointer-events-auto flex items-center gap-4 rounded-lg px-4 py-2 text-sm">
+        <div className="pointer-events-auto flex items-center gap-4 rounded-sm border border-[#E2C896]/20 bg-[#10161D]/95 px-4 py-2 text-sm shadow-lg">
           <div className="flex items-center gap-2">
             <ShardIcon className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-wide text-[#A39E93]">Shards</span>
-            <span className="font-mono-num text-arcade-shadow text-base font-extrabold text-[#FBBF24]">
-              {profile.shards}
-            </span>
+            <span className="text-[#A39E93]">Shards</span>
+            <span className="font-mono-num font-bold text-[#EAE4D7]">{profile.shards}</span>
           </div>
           <span className="text-[#475569]" aria-hidden="true">
             ·
           </span>
-          <span className="text-xs font-semibold text-[#A39E93] tabular-nums">
+          <span className="text-[#A39E93] tabular-nums">
             Sector{' '}
-            <strong className="font-mono-num text-arcade-shadow font-bold text-[#EAE4D7]">
+            <strong className="font-semibold text-[#EAE4D7]">
               {profile.highestUnlockedLevel}/{MAX_LEVEL}
             </strong>
           </span>
           <span className="text-[#475569]" aria-hidden="true">
             ·
           </span>
-          <span className="text-xs font-semibold text-[#A39E93] tabular-nums">
+          <span className="text-[#A39E93] tabular-nums">
             Turrets{' '}
-            <strong className="font-mono-num text-arcade-shadow font-bold text-[#EAE4D7]">
+            <strong className="font-semibold text-[#EAE4D7]">
               {profile.unlockedTowers.length}/{BASE_TOWER_TYPES.length}
             </strong>
           </span>
           <span className="text-[#475569]" aria-hidden="true">
             ·
           </span>
-          <span className="text-xs font-semibold text-[#A39E93] tabular-nums">
-            Wins{' '}
-            <strong className="font-mono-num text-arcade-shadow font-bold text-[#34D399]">
-              {profile.runsWon}
-            </strong>
+          <span className="text-[#A39E93] tabular-nums">
+            Wins <strong className="font-semibold text-[#EAE4D7]">{profile.runsWon}</strong>
           </span>
         </div>
       </div>
 
-      {/* Main Left Command Column */}
+      {/* Main Left Command Column (Clean, Uncluttered Hierarchy) */}
       <div className="pointer-events-auto relative z-10 my-auto max-w-lg">
         {/* Bespoke SVG Title Lockup */}
-        <div className="mb-6">
+        <div className="mb-7">
           <svg
             viewBox="0 0 420 96"
             className="h-auto w-full max-w-[360px]"
@@ -114,26 +112,23 @@ export function TitleScreen({
               <polygon
                 points="28,12 52,25 52,55 28,68 4,55 4,25"
                 fill="#1D2731"
-                stroke="#FBBF24"
-                strokeWidth="3"
+                stroke="#E5A93C"
+                strokeWidth="2.5"
               />
               <polygon
                 points="28,22 42,30 42,50 28,58 14,50 14,30"
                 fill="none"
                 stroke="#34D399"
-                strokeWidth="1.8"
+                strokeWidth="1.6"
               />
-              <circle cx="28" cy="40" r="5" fill="#FBBF24" />
+              <circle cx="28" cy="40" r="5" fill="#E5A93C" />
             </g>
             <text
               x="72"
               y="48"
-              fill="#FFFFFF"
-              stroke="#070B10"
-              strokeWidth="4"
-              paintOrder="stroke"
+              fill="#EAE4D7"
               fontFamily="Outfit, sans-serif"
-              fontWeight="900"
+              fontWeight="800"
               fontSize="40"
               letterSpacing="2"
             >
@@ -142,20 +137,20 @@ export function TitleScreen({
             <text
               x="74"
               y="72"
-              fill="#FBBF24"
+              fill="#A39E93"
               fontFamily="DM Sans, sans-serif"
-              fontWeight="700"
-              fontSize="13"
-              letterSpacing="1.8"
+              fontWeight="500"
+              fontSize="14"
+              letterSpacing="1.5"
             >
-              TACTICAL 3D TOWER DEFENSE
+              PROCEDURAL SECTOR DEFENSE
             </text>
           </svg>
         </div>
 
-        {/* Segmented Operation Mode Bar */}
-        <div className="mb-3.5">
-          <div className="ui-frame grid grid-cols-3 gap-1.5 rounded-lg p-1.5">
+        {/* Clean Segmented Operation Mode Bar */}
+        <div className="mb-4">
+          <div className="grid grid-cols-3 gap-1 rounded-sm border border-[#E2C896]/20 bg-[#10161D]/95 p-1">
             {MODE_ORDER.map((modeId) => {
               const m = GAME_MODES[modeId];
               const active = profile.selectedMode === modeId;
@@ -164,10 +159,10 @@ export function TitleScreen({
                   key={modeId}
                   type="button"
                   onClick={() => onSelectMode(modeId)}
-                  className={`arcade-btn cursor-pointer rounded-md border px-3 py-2 text-center text-xs font-extrabold uppercase tracking-wide whitespace-nowrap ${
+                  className={`cursor-pointer rounded-sm px-3 py-2 text-center text-xs font-bold transition-colors whitespace-nowrap ${
                     active
-                      ? 'border-[#FBBF24] border-b-[#B45309] bg-[#F59E0B] text-[#090D12]'
-                      : 'border-[#253241] border-b-[#0B1016] bg-[#161F2A] text-[#94A3B8] hover:text-[#EAE4D7]'
+                      ? 'bg-[#222E3B] text-[#E5A93C]'
+                      : 'text-[#94A3B8] hover:text-[#EAE4D7]'
                   }`}
                 >
                   {m.name}
@@ -177,24 +172,24 @@ export function TitleScreen({
           </div>
         </div>
 
-        {/* Active Sector / Level Briefing Panel */}
-        <div className="ui-frame mb-5 rounded-lg p-4">
+        {/* Clean Active Sector / Level Briefing Panel */}
+        <div className="mb-6 rounded-sm border border-[#E2C896]/20 bg-[#10161D]/95 p-4 shadow-lg">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 aria-label="Previous level"
                 disabled={levelDef.level <= 1}
                 onClick={() => onSelectLevel(levelDef.level - 1)}
-                className="arcade-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-[#334155] border-b-[#090D12] bg-[#17202A] text-sm font-black text-[#EAE4D7] hover:border-[#FBBF24] disabled:cursor-not-allowed disabled:opacity-35"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-[#E2C896]/20 bg-[#17202A] text-xs font-bold text-[#EAE4D7] hover:border-[#E5A93C] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 ‹
               </button>
               <div>
-                <div className="font-mono-num text-[11px] font-extrabold text-[#FBBF24]">
-                  LEVEL {levelDef.level} OF {MAX_LEVEL} · {levelDef.biome.toUpperCase()}
+                <div className="font-mono-num text-[11px] font-bold text-[#E5A93C]">
+                  LEVEL {levelDef.level} OF {MAX_LEVEL}
                 </div>
-                <div className="font-display text-arcade-shadow text-lg font-extrabold text-white">
+                <div className="font-display text-base font-bold text-[#EAE4D7]">
                   {levelDef.name}
                 </div>
               </div>
@@ -203,7 +198,7 @@ export function TitleScreen({
                 aria-label="Next level"
                 disabled={levelDef.level >= profile.highestUnlockedLevel}
                 onClick={() => onSelectLevel(levelDef.level + 1)}
-                className="arcade-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-[#334155] border-b-[#090D12] bg-[#17202A] text-sm font-black text-[#EAE4D7] hover:border-[#FBBF24] disabled:cursor-not-allowed disabled:opacity-35"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-[#E2C896]/20 bg-[#17202A] text-xs font-bold text-[#EAE4D7] hover:border-[#E5A93C] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 ›
               </button>
@@ -213,58 +208,58 @@ export function TitleScreen({
               type="button"
               data-testid="open-levels-btn"
               onClick={onOpenLevels}
-              className="arcade-btn cursor-pointer rounded-md border border-[#38BDF8]/65 border-b-[#0369A1] bg-[#0F293A] px-3.5 py-1.5 text-xs font-extrabold text-[#BAE6FD] hover:brightness-110 whitespace-nowrap"
+              className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#17202A] px-3 py-1.5 text-xs font-semibold text-[#EAE4D7] hover:border-[#E5A93C] whitespace-nowrap"
             >
               All Levels
             </button>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#E2C896]/15 pt-2.5 text-xs font-semibold text-[#A39E93] tabular-nums">
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#E2C896]/10 pt-2.5 text-xs text-[#A39E93] tabular-nums">
             <span>{waveText}</span>
             <span aria-hidden="true">·</span>
             <span>{levelDef.enemyHpScale.toFixed(2)}x HP</span>
             <span aria-hidden="true">·</span>
             <span>{levelDef.enemySpeedScale.toFixed(2)}x Speed</span>
             <span aria-hidden="true">·</span>
-            <span className="font-mono-num text-arcade-shadow font-extrabold text-[#34D399]">
-              {rewardMult.toFixed(2)}x Shards
-            </span>
+            <span className="font-semibold text-[#34D399]">{rewardMult.toFixed(2)}x Shards</span>
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between gap-2 rounded-md border border-[#F97316]/35 bg-[#161B22] px-3 py-1.5 text-xs">
-            <div className="truncate font-semibold text-[#94A3B8]">
-              Level Hazards:{' '}
-              <span className="font-bold text-[#FDBA74]">
-                {hazardNames.length > 0 ? hazardNames.join(', ') : 'Standard'}
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+            <div className="truncate text-[#94A3B8]">
+              Random Hazards:{' '}
+              <span className={hazardNames.length > 0 ? 'text-[#EAE4D7]' : 'text-[#64748B]'}>
+                {hazardNames.length > 0 ? hazardNames.join(', ') : 'None'}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => onRerollLevelModifiers(levelDef.level)}
-              className="shrink-0 cursor-pointer font-extrabold text-[#38BDF8] hover:text-[#7DD3FC]"
-            >
-              Reroll
-            </button>
+            {levelDef.randomModifierCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onRerollLevelModifiers(levelDef.level)}
+                className="shrink-0 cursor-pointer font-semibold text-[#38BDF8] hover:text-[#7DD3FC]"
+              >
+                Reroll
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Primary CTA + Secondary Command Row */}
+        {/* Primary CTA + Compact Secondary Command Row */}
         <div className="flex flex-col items-start gap-3">
           <button
             type="button"
             data-start="true"
             onClick={onStartMission}
-            className="font-display arcade-btn text-arcade-shadow cursor-pointer rounded-lg border-2 border-[#FEF08A]/70 border-b-[4px] border-b-[#92400E] bg-gradient-to-b from-[#FBBF24] to-[#D97706] px-9 py-3 text-lg font-black uppercase tracking-wide text-white shadow-xl hover:brightness-105 whitespace-nowrap"
+            className="font-display cursor-pointer rounded-sm border border-[#FCD34D]/60 bg-[#E5A93C] px-8 py-3 text-base font-bold text-[#11171D] shadow-lg transition-transform active:scale-[0.98] hover:bg-[#F0B94D] whitespace-nowrap"
           >
             Start Level {levelDef.level}
           </button>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               data-testid="open-loadout-btn"
               onClick={onOpenLoadout}
-              className="arcade-btn cursor-pointer rounded-lg border-2 border-[#34D399]/70 border-b-[#065F46] bg-[#122620] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#EAE4D7] hover:brightness-110 whitespace-nowrap"
+              className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#141B23] px-3.5 py-2 text-xs font-semibold text-[#EAE4D7] transition-colors hover:border-[#34D399]/70 hover:bg-[#1B2530] whitespace-nowrap"
             >
               Lineup{' '}
               <span className="font-mono-num text-[#34D399]">
@@ -275,20 +270,33 @@ export function TitleScreen({
             <button
               type="button"
               onClick={onOpenEvolutions}
-              className="arcade-btn cursor-pointer rounded-lg border-2 border-[#F59E0B]/70 border-b-[#92400E] bg-[#241B10] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#EAE4D7] hover:brightness-110 whitespace-nowrap"
+              className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#141B23] px-3.5 py-2 text-xs font-semibold text-[#EAE4D7] transition-colors hover:border-[#E5A93C]/70 hover:bg-[#1B2530] whitespace-nowrap"
             >
               Evolutions{' '}
-              <span className="font-mono-num text-[#FBBF24]">
+              <span className="font-mono-num text-[#E5A93C]">
                 ({totalEvoTier}/{maxEvoTiers})
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenModifiers}
+              className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#141B23] px-3.5 py-2 text-xs font-semibold text-[#EAE4D7] transition-colors hover:border-[#E5A93C]/70 hover:bg-[#1B2530] whitespace-nowrap"
+            >
+              Extra Modifiers{' '}
+              {profile.activeModifiers.length > 0 && (
+                <span className="font-mono-num text-[#E5A93C]">
+                  ({profile.activeModifiers.length})
+                </span>
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Single Crisp Control-Hint Strip */}
-      <div className="ui-frame relative z-10 inline-block self-start rounded-md px-3 py-1 text-xs font-semibold tracking-wide text-[#CBD5E1]">
-        Enter/Space Start · 1-6 Select Turret · T Ping · V Path · Click Place/Inspect · Right-Drag Orbit · Scroll Zoom · C Reset Cam
+      {/* Single Flat Borderless Control-Hint Line */}
+      <div className="relative z-10 text-xs tracking-wide text-[#94A3B8]">
+        Enter/Space Start · 1-6 Select Turret · Click Place/Inspect · Drag Pan · Right-Drag Orbit · Scroll Zoom · C Reset Cam
       </div>
     </div>
   );

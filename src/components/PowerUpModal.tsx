@@ -14,18 +14,16 @@ export function PowerUpModal({ waveCleared, choices, onPick }: PowerUpModalProps
       aria-modal="true"
       aria-labelledby="powerup-title"
     >
-      <div className="ui-modal-frame w-full max-w-3xl rounded-xl p-6">
+      <div className="w-full max-w-3xl border border-[#E2C896]/25 bg-[#141A21] p-6 shadow-2xl">
         <div className="mb-5">
-          <div className="ui-header-ribbon px-5 py-1.5">
-            <h2
-              id="powerup-title"
-              className="font-display text-arcade-shadow text-lg font-black uppercase tracking-wider text-white"
-            >
-              Wave {waveCleared} Cleared · Select Upgrade
-            </h2>
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#E5A93C]">
+            Wave {waveCleared} Cleared
           </div>
-          <p className="mt-2.5 text-sm font-medium text-[#A39E93]">
-            Choose one permanent run doctrine or active battlefield ability.
+          <h2 id="powerup-title" className="font-display mt-1 text-2xl font-bold text-[#EAE4D7]">
+            Select Tactical Power-Up
+          </h2>
+          <p className="mt-1 text-sm text-[#A39E93]">
+            Choose one permanent run upgrade or active battlefield ability.
           </p>
         </div>
 
@@ -35,23 +33,24 @@ export function PowerUpModal({ waveCleared, choices, onPick }: PowerUpModalProps
               key={choice.id}
               type="button"
               onClick={() => onPick(choice.id)}
-              style={{ borderColor: choice.accentColor }}
-              className="arcade-btn flex cursor-pointer flex-col justify-between rounded-lg border-2 border-b-[4px] bg-[#161E28] p-4 text-left hover:bg-[#1E2A38]"
+              className="flex cursor-pointer flex-col justify-between border border-[#E2C896]/20 bg-[#19222C] p-4 text-left transition-colors hover:border-[#E5A93C] hover:bg-[#222E3B]"
             >
               <div>
-                <div className="mb-2 flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
+                <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider">
                   <span style={{ color: choice.accentColor }}>
                     {choice.category === 'active'
-                      ? `Ability [${choice.hotkey}]`
+                      ? `Active Ability [${choice.hotkey}]`
                       : 'Passive Doctrine'}
                   </span>
                 </div>
-                <h3 className="font-display text-arcade-shadow text-base font-extrabold text-white">
+                <h3 className="font-display text-base font-bold text-[#EAE4D7]">
                   {choice.name}
                 </h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#CBD5E1]">{choice.desc}</p>
+                <p className="mt-2 text-xs leading-relaxed text-[#A39E93]">
+                  {choice.desc}
+                </p>
               </div>
-              <div className="mt-4 border-t border-[#E2C896]/15 pt-2.5 text-xs font-extrabold uppercase tracking-wide text-[#FBBF24]">
+              <div className="mt-4 border-t border-[#E2C896]/10 pt-2.5 text-xs font-bold text-[#E5A93C]">
                 Deploy Upgrade
               </div>
             </button>

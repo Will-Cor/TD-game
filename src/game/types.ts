@@ -64,7 +64,6 @@ export interface GridCoord {
 
 export interface GameMap {
   seed: number;
-  level: number;
   cols: number;
   rows: number;
   tiles: TileKind[][];
@@ -137,7 +136,6 @@ export interface GameModeDef {
 export interface LevelDef {
   level: number;
   name: string;
-  biome: string;
   subtitle: string;
   wavesBonus: number;
   enemyHpScale: number;
@@ -186,8 +184,6 @@ export interface PlacedTower {
   fusedParents?: [BaseTowerType, BaseTowerType];
   col: number;
   row: number;
-  x: number;
-  y: number;
   level: 1 | 2 | 3;
   priority: TargetPriority;
   onVantage: boolean;
@@ -285,21 +281,6 @@ export interface FloatingText {
   maxLife: number;
 }
 
-export type TacticalPingKind = 'focus' | 'build' | 'defend';
-
-export interface TacticalPing {
-  id: number;
-  col: number;
-  row: number;
-  x: number;
-  y: number;
-  kind: TacticalPingKind;
-  label: string;
-  color: string;
-  life: number;
-  maxLife: number;
-}
-
 export interface WaveSpawnEntry {
   archetype: EnemyArchetypeId;
   delay: number;
@@ -367,9 +348,6 @@ export interface RunState {
   arcs: ArcEffect[];
   rings: RingEffect[];
   floatingTexts: FloatingText[];
-  tacticalPings: TacticalPing[];
-  pendingTacticalPing: boolean;
-  showEnemyPath: boolean;
   nextEntityId: number;
   passivePowerUps: PowerUpId[];
   activeAbilities: ActiveAbilityState[];

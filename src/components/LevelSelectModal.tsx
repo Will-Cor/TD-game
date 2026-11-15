@@ -30,34 +30,28 @@ export function LevelSelectModal({
       aria-modal="true"
       aria-labelledby="level-modal-title"
     >
-      <div className="ui-modal-frame flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl">
-        {/* Slanted Gold Header Banner + Corner X Close */}
-        <div className="flex items-start justify-between border-b border-[#E2C896]/15 px-6 pb-4 pt-4">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-sm border border-[#E2C896]/25 bg-[#10161D] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#E2C896]/15 px-6 py-4">
           <div>
-            <div className="ui-header-ribbon px-5 py-1.5">
-              <h2
-                id="level-modal-title"
-                className="font-display text-arcade-shadow text-xl font-black uppercase tracking-wider text-white"
-              >
-                Campaign Sectors (1–{MAX_LEVEL})
-              </h2>
-            </div>
-            <p className="mt-2.5 text-xs font-medium text-[#A39E93]">
-              Every sector rolls unique random battlefield hazards and distinct terrain trails. Clear a sector to unlock the next level.
+            <h2 id="level-modal-title" className="font-display text-xl font-bold text-[#EAE4D7]">
+              Campaign Sectors (Levels 1–{MAX_LEVEL})
+            </h2>
+            <p className="mt-0.5 text-xs text-[#A39E93]">
+              Each sector escalates enemy hull HP, speed, and wave count while rolling random battlefield hazards. Win a sector to unlock the next level.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close campaign sectors"
-            className="ui-close-x shrink-0"
+            className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#17202A] px-4 py-1.5 text-sm font-semibold text-[#EAE4D7] transition-colors hover:border-[#E5A93C]"
           >
-            ✕
+            Done
           </button>
         </div>
 
         {/* 8-Level Grid */}
-        <div className="grid grid-cols-1 gap-3.5 overflow-y-auto p-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 overflow-y-auto p-6 sm:grid-cols-2">
           {LEVEL_DEFS.map((lvl) => {
             const unlocked = lvl.level <= profile.highestUnlockedLevel;
             const selected = profile.selectedLevel === lvl.level;
@@ -66,9 +60,10 @@ export function LevelSelectModal({
             const modNames = randomMods
               .map((id) => MODIFIERS.find((m) => m.id === id)?.name ?? id)
               .filter(Boolean);
+            const combinedMods = Array.from(new Set([...randomMods, ...profile.activeModifiers]));
             const totalMult = computeTotalRewardMultiplier(
               profile.selectedMode,
-              randomMods,
+              combinedMods,
               lvl.level,
             );
             const waveCount =
@@ -78,45 +73,45 @@ export function LevelSelectModal({
               <div
                 key={lvl.level}
                 data-testid={`level-card-${lvl.level}`}
-                className={`flex flex-col justify-between rounded-lg border-2 p-4 transition-colors ${
+                className={`flex flex-col justify-between rounded-sm border p-4 transition-colors ${
                   !unlocked
-                    ? 'border-[#334155]/45 bg-[#121820] opacity-60'
+                    ? 'border-[#E2C896]/10 bg-[#121820] opacity-60'
                     : selected
-                      ? 'border-[#FBBF24] bg-[#1C2632] shadow-[0_4px_0_#92400E]'
-                      : 'border-[#E2C896]/25 bg-[#151D26]'
+                      ? 'border-[#E5A93C] bg-[#1C2632]'
+                      : 'border-[#E2C896]/15 bg-[#151D26]'
                 }`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono-num rounded bg-[#F59E0B]/20 px-1.5 py-0.5 text-xs font-black text-[#FBBF24]">
-                          LV.{lvl.level}
+                        <span className="font-mono-num text-xs font-bold text-[#E5A93C]">
+                          LEVEL {lvl.level}
                         </span>
-                        <h3 className="font-display text-arcade-shadow text-base font-extrabold text-white">
+                        <h3 className="font-display text-base font-bold text-[#EAE4D7]">
                           {lvl.name}
                         </h3>
                       </div>
-                      <p className="mt-1 text-xs font-medium text-[#94A3B8]">
-                        {lvl.biome} · {waveCount} · {lvl.enemyHpScale.toFixed(2)}x HP ·{' '}
+                      <p className="mt-0.5 text-xs text-[#94A3B8]">
+                        {waveCount} · {lvl.enemyHpScale.toFixed(2)}x HP ·{' '}
                         {lvl.enemySpeedScale.toFixed(2)}x Speed
                       </p>
                     </div>
-                    <span className="font-mono-num text-arcade-shadow shrink-0 text-xs font-extrabold text-[#34D399]">
+                    <span className="font-mono-num shrink-0 text-xs font-bold text-[#34D399]">
                       {totalMult.toFixed(2)}x Shards
                     </span>
                   </div>
 
                   {/* Random Level Modifiers Readout */}
-                  <div className="mt-3 rounded-md border border-[#F97316]/25 bg-[#10161D] px-3 py-2 text-xs">
-                    <span className="font-semibold text-[#94A3B8]">Random Hazards: </span>
-                    <span className="font-bold text-[#FDBA74]">
-                      {modNames.length > 0 ? modNames.join(' · ') : 'Standard'}
+                  <div className="mt-3 border-t border-[#E2C896]/10 pt-2.5 text-xs">
+                    <span className="text-[#94A3B8]">Random Hazards: </span>
+                    <span className={modNames.length > 0 ? 'font-medium text-[#EAE4D7]' : 'text-[#64748B]'}>
+                      {modNames.length > 0 ? modNames.join(' · ') : 'None (Entry Sector)'}
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-3.5 flex items-center justify-between gap-2 pt-0.5">
+                <div className="mt-3 flex items-center justify-between gap-2 pt-1">
                   {!unlocked ? (
                     <span className="text-xs font-semibold text-[#64748B]">
                       Locked · Clear Level {lvl.level - 1} to Unlock
@@ -130,23 +125,25 @@ export function LevelSelectModal({
                           onSelectLevel(lvl.level);
                           onClose();
                         }}
-                        className={`arcade-btn cursor-pointer rounded-md border-2 px-4 py-1.5 text-xs font-extrabold uppercase tracking-wide ${
+                        className={`cursor-pointer rounded-sm border px-3.5 py-1.5 text-xs font-bold transition-colors ${
                           selected
-                            ? 'border-[#FEF08A]/70 border-b-[#92400E] bg-[#F59E0B] text-[#090D12]'
-                            : 'border-[#34D399]/60 border-b-[#065F46] bg-[#132C24] text-[#34D399] hover:brightness-110'
+                            ? 'border-[#FCD34D]/60 bg-[#E5A93C] text-[#11171D]'
+                            : 'border-[#E2C896]/25 bg-[#1B2530] text-[#EAE4D7] hover:border-[#E5A93C]'
                         }`}
                       >
-                        {selected ? 'Selected' : `Deploy Lv.${lvl.level}`}
+                        {selected ? 'Selected' : `Deploy Level ${lvl.level}`}
                       </button>
 
-                      <button
-                        type="button"
-                        data-testid={`reroll-level-mods-${lvl.level}`}
-                        onClick={() => onRerollLevelModifiers(lvl.level)}
-                        className="arcade-btn cursor-pointer rounded-md border-2 border-[#38BDF8]/40 border-b-[#0C4A6E] bg-[#13202C] px-3 py-1.5 text-xs font-bold text-[#7DD3FC] hover:brightness-110"
-                      >
-                        Reroll Hazards
-                      </button>
+                      {lvl.randomModifierCount > 0 && (
+                        <button
+                          type="button"
+                          data-testid={`reroll-level-mods-${lvl.level}`}
+                          onClick={() => onRerollLevelModifiers(lvl.level)}
+                          className="cursor-pointer rounded-sm border border-[#E2C896]/20 bg-[#141A21] px-3 py-1.5 text-xs font-semibold text-[#A39E93] transition-colors hover:border-[#38BDF8]/60 hover:text-[#EAE4D7]"
+                        >
+                          Reroll Hazards
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
