@@ -8,6 +8,7 @@ interface StatusModalProps {
   onResume: () => void;
   onRestart: () => void;
   onMainMenu: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function StatusModal({
@@ -16,6 +17,7 @@ export function StatusModal({
   onResume,
   onRestart,
   onMainMenu,
+  onOpenSettings,
 }: StatusModalProps) {
   if (screen === 'paused') {
     return (
@@ -41,6 +43,15 @@ export function StatusModal({
             >
               Resume Mission
             </button>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="arcade-btn cursor-pointer rounded-lg border-2 border-[#E2C896]/40 border-b-[#090D12] bg-[#18212C] py-2.5 text-sm font-bold text-[#EAE4D7] hover:border-[#FBBF24]"
+              >
+                Settings
+              </button>
+            )}
             <button
               type="button"
               onClick={onRestart}
