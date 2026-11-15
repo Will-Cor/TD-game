@@ -300,7 +300,7 @@ export function createCourtyardPocketProp(
 
   const stoneMat = new THREE.MeshStandardMaterial({
     color: theme.plazaColor,
-    map: textures.terraceMap,
+    map: textures.groundMap,
     roughness: 0.85,
     metalness: 0.08,
   });
@@ -409,7 +409,7 @@ export function createThemedSceneryProp(
   if (r2 > 0.42) {
     const wallMat = new THREE.MeshStandardMaterial({
       color: theme.plazaColor,
-      map: textures.terraceMap,
+      map: textures.groundMap,
       roughness: 0.8,
       metalness: 0.12,
     });
@@ -477,7 +477,7 @@ export function createThemedSceneryProp(
     });
     const stoneMat = new THREE.MeshStandardMaterial({
       color: theme.rockColor,
-      map: textures.terraceMap,
+      map: textures.groundMap,
       roughness: 0.85,
     });
 
@@ -498,7 +498,7 @@ export function createThemedSceneryProp(
   }
 
   if (style === 'foundry') {
-    const rustMat = new THREE.MeshStandardMaterial({ color: 0x6e402c, map: textures.metalMap, roughness: 0.65, metalness: 0.45 });
+    const rustMat = new THREE.MeshStandardMaterial({ color: 0x6e402c, bumpMap: textures.metalBump, roughness: 0.65, metalness: 0.45 });
     const steelMat = new THREE.MeshStandardMaterial({ color: 0x2e2623, roughness: 0.45, metalness: 0.75 });
     const emberMat = new THREE.MeshStandardMaterial({
       color: 0xf97316,
@@ -521,7 +521,7 @@ export function createThemedSceneryProp(
   if (style === 'marsh' || style === 'cryo' || style === 'rift') {
     const stoneMat = new THREE.MeshStandardMaterial({
       color: theme.rockColor,
-      map: textures.terraceMap,
+      map: textures.groundMap,
       roughness: 0.85,
       flatShading: true,
     });
@@ -550,7 +550,7 @@ export function createThemedSceneryProp(
   }
 
   if (style === 'volcanic') {
-    const basaltMat = new THREE.MeshStandardMaterial({ color: 0x331f1f, map: textures.terraceMap, roughness: 0.9, flatShading: true });
+    const basaltMat = new THREE.MeshStandardMaterial({ color: 0x331f1f, map: textures.groundMap, roughness: 0.9, flatShading: true });
     const magmaMat = new THREE.MeshStandardMaterial({
       color: 0xf97316,
       emissive: 0xef4444,
@@ -568,7 +568,7 @@ export function createThemedSceneryProp(
   }
 
   if (style === 'desert') {
-    const sandMat = new THREE.MeshStandardMaterial({ color: 0x8f6b41, map: textures.terraceMap, roughness: 0.88 });
+    const sandMat = new THREE.MeshStandardMaterial({ color: 0x8f6b41, map: textures.groundMap, roughness: 0.88 });
     const goldMat = new THREE.MeshStandardMaterial({ color: 0xe5a93c, roughness: 0.3, metalness: 0.75 });
 
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.68), sandMat);
@@ -585,7 +585,7 @@ export function createThemedSceneryProp(
   }
 
   // Level 8: Reactor Citadel Pylon
-  const armorMat = new THREE.MeshStandardMaterial({ color: 0x222938, map: textures.metalMap, roughness: 0.45, metalness: 0.72 });
+  const armorMat = new THREE.MeshStandardMaterial({ color: 0x222938, bumpMap: textures.metalBump, roughness: 0.45, metalness: 0.72 });
   const trimMat = new THREE.MeshStandardMaterial({ color: 0xe5a93c, roughness: 0.3, metalness: 0.82 });
   const coreMat = new THREE.MeshStandardMaterial({
     color: 0xf43f5e,

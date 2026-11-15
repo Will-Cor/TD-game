@@ -61,7 +61,7 @@ function renderTypesToCache(entries: Array<{ type: TowerType; level: TowerLevel 
     camera.position.set(1.22, 1.12, 1.44);
     camera.lookAt(0.05, 0.34, 0);
 
-    const textures = createProceduralTextures();
+    const textures = createProceduralTextures(1);
 
     for (const { type, level } of entries) {
       const handle = createTowerModel(type, level, textures);
